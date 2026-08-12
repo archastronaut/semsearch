@@ -2,10 +2,6 @@
 
 Can Rust run small AI embedding models (like all-MiniLM) fully offline, no cloud calls? **Yes** — but the tools differ a lot in reliability.
 
-## Bottom line
-
-**Use `fastembed-rs`.** It's the easiest and most reliable way to run embedding models locally in Rust — popular models work out of the box, no manual setup.
-
 ## The options
 
 | Tool | Ease of use | Catch |
