@@ -10,12 +10,6 @@ Can Rust run small AI embedding models (like all-MiniLM) fully offline, no cloud
 | **candle** (Hugging Face's Rust ML lib) | Medium — flexible, but fragile | Has had breaking updates and broken example code |
 | **rust-bert** | Hardest | Needs PyTorch (libtorch) installed alongside it |
 
-## Problems found with candle specifically
-
-- A routine update once broke other projects that depended on it.
-- Its own official example code has failed to even compile.
-- Loading a standard AI model into it has caused unexplained errors.
-
 ## Recommendation
 
 Start with `fastembed-rs`. Only reach for `candle` if you hit a real limitation it solves and you're OK debugging occasional breakage.
