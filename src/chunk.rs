@@ -12,6 +12,14 @@ pub struct Chunk {
     pub text: String,
 }
 
+/// True for the file types semsearch knows how to read.
+pub fn is_supported(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some("md") | Some("txt")
+    )
+}
+
 /// Walk `dir` recursively and return paths to all `.md`/`.txt` files.
 pub fn discover_files(dir: &Path) -> Vec<PathBuf> {
     WalkDir::new(dir)
@@ -19,12 +27,7 @@ pub fn discover_files(dir: &Path) -> Vec<PathBuf> {
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_file())
         .map(|entry| entry.into_path())
-        .filter(|path| {
-            matches!(
-                path.extension().and_then(|ext| ext.to_str()),
-                Some("md") | Some("txt")
-            )
-        })
+        .filter(|path| is_supported(path))
         .collect()
 }
 
@@ -99,5 +102,14 @@ mod tests {
     fn handles_crlf_line_endings() {
         let text = "First.\r\n\r\nSecond.";
         assert_eq!(chunk_text(text), vec!["First.", "Second."]);
+    }
+
+    #[test]
+    fn is_supported_accepts_md_and_txt_only() {
+        assert!(is_supported(Path::new("notes.md")));
+        assert!(is_supported(Path::new("notes.txt")));
+        assert!(!is_supported(Path::new("notes.markdown")));
+        assert!(!is_supported(Path::new("Cargo.toml")));
+        assert!(!is_supported(Path::new("no_extension")));
     }
 }

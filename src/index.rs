@@ -7,6 +7,29 @@ use serde::{Deserialize, Serialize};
 use crate::chunk;
 use crate::embed::Embedder;
 
+/// Discover and chunk every .md/.txt file under `dir` (a directory, or a
+/// single file). Cheap — no model work — so callers can bail out early when
+/// there is nothing to embed, before paying the model load/download.
+pub fn collect_chunks(dir: &Path) -> Result<Vec<chunk::Chunk>> {
+    let files = chunk::discover_files(dir);
+
+    // Fail fast on problem files rather than silently skipping them — a
+    // silent skip would mean silently incomplete search results later.
+    let mut all_chunks = Vec::new();
+    for path in &files {
+        // serde serializes PathBuf as a UTF-8 string, so a non-UTF-8 file
+        // name would make save() fail *after* the expensive embedding pass,
+        // with an error that names no file. Reject it here instead.
+        anyhow::ensure!(
+            path.to_str().is_some(),
+            "non-UTF-8 file name (unsupported): {}",
+            path.display()
+        );
+        all_chunks.extend(chunk::read_and_chunk(path)?);
+    }
+    Ok(all_chunks)
+}
+
 /// A chunk of text plus the embedding vector computed for it. This is the
 /// on-disk unit: build once with `Index::build`, save it, and later runs
 /// load it back instead of re-running the model over every file.
@@ -31,37 +54,20 @@ pub struct SearchHit<'a> {
 }
 
 impl Index {
-    /// Walk `dir`, chunk every .md/.txt file, and embed all chunks in one
-    /// batch. This is the slow step (loads the model, runs inference on
-    /// every chunk) — everything after this is just math on saved vectors.
-    pub fn build(dir: &Path) -> Result<Self> {
-        let files = chunk::discover_files(dir);
-
-        // Fail fast on problem files rather than silently skipping them — a
-        // silent skip would mean silently incomplete search results later.
-        let mut all_chunks = Vec::new();
-        for path in &files {
-            // serde serializes PathBuf as a UTF-8 string, so a non-UTF-8
-            // file name would make save() fail *after* the expensive
-            // embedding pass, with an error that names no file. Reject it
-            // here instead, before any model work.
-            anyhow::ensure!(
-                path.to_str().is_some(),
-                "non-UTF-8 file name (unsupported): {}",
-                path.display()
-            );
-            all_chunks.extend(chunk::read_and_chunk(path)?);
-        }
-
-        if all_chunks.is_empty() {
+    /// Embed pre-collected chunks in one batch. This is the slow step
+    /// (model inference on every chunk) — everything after this is just
+    /// math on the vectors. Takes chunks and embedder separately so callers
+    /// can check for emptiness *before* paying the model load, and so `ask`
+    /// can reuse one loaded model for both the documents and the query.
+    pub fn from_chunks(chunks: Vec<chunk::Chunk>, embedder: &mut Embedder) -> Result<Self> {
+        if chunks.is_empty() {
             return Ok(Self::default());
         }
 
-        let mut embedder = Embedder::new()?;
-        let texts: Vec<&str> = all_chunks.iter().map(|c| c.text.as_str()).collect();
+        let texts: Vec<&str> = chunks.iter().map(|c| c.text.as_str()).collect();
         let embeddings = embedder.embed_documents(&texts)?;
 
-        let chunks = all_chunks
+        let chunks = chunks
             .into_iter()
             .zip(embeddings)
             .map(|(c, embedding)| IndexedChunk {

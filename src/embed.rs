@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
 
@@ -14,14 +16,29 @@ pub struct Embedder {
 }
 
 impl Embedder {
-    /// Loads nomic-embed-text-v1.5. First run downloads the ONNX weights to
-    /// fastembed's local cache (~/.cache/fastembed by default); later runs
-    /// are fully offline.
+    /// Loads nomic-embed-text-v1.5. First run downloads the ONNX weights;
+    /// later runs are fully offline.
     pub fn new() -> Result<Self> {
-        let model = TextEmbedding::try_new(
-            TextInitOptions::new(EmbeddingModel::NomicEmbedTextV15)
-                .with_show_download_progress(true),
-        )?;
+        let mut options = TextInitOptions::new(EmbeddingModel::NomicEmbedTextV15)
+            .with_show_download_progress(true);
+
+        // fastembed's default cache is ./.fastembed_cache relative to the
+        // *current directory*, which would re-download the ~500 MB model in
+        // every directory the tool is invoked from. Pin it to one shared
+        // location so `semsearch` works the same from anywhere. An empty
+        // HOME would silently produce a *relative* .cache/semsearch — treat
+        // it like unset, and say so instead of degrading quietly.
+        match std::env::var_os("HOME").filter(|home| !home.is_empty()) {
+            Some(home) => {
+                options = options.with_cache_dir(PathBuf::from(home).join(".cache/semsearch"));
+            }
+            None => eprintln!(
+                "warning: HOME is not set; model cache falls back to \
+                 .fastembed_cache in the current directory"
+            ),
+        }
+
+        let model = TextEmbedding::try_new(options)?;
         Ok(Self { model })
     }
 
