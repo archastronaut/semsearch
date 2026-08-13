@@ -25,8 +25,10 @@ impl Embedder {
         Ok(Self { model })
     }
 
-    /// Embed document/passage chunks for indexing.
-    pub fn embed_documents(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+    /// Embed document/passage chunks for indexing. Takes `&[&str]` so
+    /// callers can borrow into whatever owns the text; the prefix `format!`
+    /// below makes the one owned copy fastembed actually needs.
+    pub fn embed_documents(&mut self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let prefixed: Vec<String> = texts
             .iter()
             .map(|t| format!("{DOCUMENT_PREFIX}{t}"))
@@ -36,8 +38,6 @@ impl Embedder {
 
     /// Embed a search query. Uses a different prefix than documents, since
     /// nomic-embed-text is trained for asymmetric query <-> passage retrieval.
-    /// Unused until milestone 5 (search) wires it up.
-    #[allow(dead_code)]
     pub fn embed_query(&mut self, text: &str) -> Result<Vec<f32>> {
         let prefixed = format!("{QUERY_PREFIX}{text}");
         let mut out = self.model.embed(vec![prefixed], None)?;
