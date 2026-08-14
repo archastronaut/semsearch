@@ -2,6 +2,23 @@
 
 Can Rust run small AI embedding models (like all-MiniLM) fully offline, no cloud calls? **Yes** — but the tools differ a lot in reliability.
 
+## Setup
+
+```sh
+cargo build --release
+```
+
+On first run, fastembed downloads the embedding model (nomic-embed-text-v1.5) and caches it locally — after that everything is fully offline. Then:
+
+```sh
+# one-shot: ask a question against a file or folder of notes
+./target/release/semsearch ask notes.md "what did I write about caching?"
+
+# or build a persistent index and search it
+./target/release/semsearch index ~/notes
+./target/release/semsearch search "rust ownership"
+```
+
 ## The options
 
 | Tool | Ease of use | Catch |
